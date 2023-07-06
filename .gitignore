@@ -1,4 +1,4 @@
 *.nix
-proxyguard
+./proxyguard
 .envrc
 .direnv
