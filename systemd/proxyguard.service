@@ -1,0 +1,16 @@
+[Unit]
+Description=Proxy WireGuard UDP connections over TCP
+
+[Service]
+AmbientCapabilities=CAP_NET_ADMIN
+Environment=LISTEN=[::]:51820
+Environment=TO=127.0.0.1:51820
+EnvironmentFile=-/etc/sysconfig/proxyguard
+EnvironmentFile=-/etc/default/proxyguard
+ExecStart=/usr/sbin/proxyguard -server -listen ${LISTEN} -to ${TO}
+Restart=on-failure
+PrivateDevices=yes
+DynamicUser=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+# Listen for TCP connections from VPN client on this ADDR:PORT
+# OPTIONAL, DEFAULT = [::]:51820
+#LISTEN=[::]:51820
+#LISTEN=[::]:443
+#LISTEN=192.168.5.0:12345
+
+# Forward to WireGuard UDP ADDR:PORT
+# OPTIONAL, DEFAULT = 127.0.0.1:51820
+#TO=127.0.0.1:51820
+#TO=127.0.0.1:443
+#TO=[::1]:443
