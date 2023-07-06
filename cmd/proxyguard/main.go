@@ -10,12 +10,12 @@ import (
 	"os"
 	"runtime"
 	"sync"
-	"syscall"
 )
 
 // BufSize is the total length that we receive at once
 // 2^16
 const BufSize = 2 << 15
+
 // HdrLength is the length of our own crafted header
 // This header contains the length of a UDP packet
 const HdrLength = 2
@@ -60,7 +60,6 @@ func writeTCP(conn net.Conn, buf []byte, n int) error {
 	return werr
 }
 
-
 // TCPToUDP reads from the TCP connection tcpc and writes packets to the udpc connection
 // The incoming TCP packets are encapsulated UDP packets with a 2 byte length prefix
 func TCPToUDP(tcpc *net.TCPConn, udpc *net.UDPConn) error {
@@ -75,7 +74,7 @@ func TCPToUDP(tcpc *net.TCPConn, udpc *net.UDPConn) error {
 			// There is still data left to be written
 			// Copy to front
 			if todo > done {
-				diff := todo-done
+				diff := todo - done
 				copy(bufr[:diff], bufr[done:todo])
 			}
 			todo -= done
@@ -121,23 +120,6 @@ func inferUDPAddr(laddr *net.UDPAddr) (*net.UDPAddr, []byte, error) {
 		return nil, nil, err
 	}
 	return nil, nil, errors.New("could not infer port because address was nil")
-}
-
-// markedDial creates a TCP dial with fwmark/SO_MARK set
-func markedDial(mark int, to string) (net.Conn, error) {
-	d := net.Dialer{
-		Control: func(network, address string, conn syscall.RawConn) error {
-			var seterr error
-			err := conn.Control(func (fd uintptr) {
-				seterr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_MARK, mark)
-			})
-			if err != nil {
-				return err
-			}
-			return seterr
-		},
-	}
-	return d.Dial("tcp", to)
 }
 
 // client creates a client that forwards UDP to TCP
@@ -285,8 +267,13 @@ func main() {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
-	// fwmark flag is given but we are not linux
-	if *fwmark != -1 && runtime.GOOS != "linux" {
+	// Warn that the server does not use fwmark
+	if *is && *fwmark != -1 {
+		fmt.Fprintln(os.Stderr, "Invalid invocation warning: The --fwmark flag is a NO-OP for the server")
+		*fwmark = -1
+	}
+	// fwmark flag is given for the client but we are not linux
+	if *ic && *fwmark != -1 && runtime.GOOS != "linux" {
 		fmt.Fprintln(os.Stderr, "Invalid invocation warning: The --fwmark flag is a NO-OP when you're not using Linux. We will ignore it...")
 		*fwmark = -1
 	}
