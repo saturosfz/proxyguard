@@ -8,7 +8,7 @@ import (
 	"os"
 	"runtime"
 
-	"codeberg.org/eduVPN/proxyguard"
+	"eduvpn.org/proxyguard"
 )
 
 type ClientLogger struct{}

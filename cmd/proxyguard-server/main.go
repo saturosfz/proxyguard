@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 
-	"codeberg.org/eduVPN/proxyguard"
+	"eduvpn.org/proxyguard"
 )
 
 type ServerLogger struct{}
