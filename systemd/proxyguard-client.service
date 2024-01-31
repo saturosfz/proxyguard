@@ -1,0 +1,17 @@
+[Unit]
+Description=Proxy WireGuard traffic from UDP to TCP
+
+[Service]
+AmbientCapabilities=CAP_NET_ADMIN
+Environment=LISTEN=127.0.0.1:51820
+Environment=TO=vpn.example.org:51820
+Environment=FWMARK=54321
+EnvironmentFile=-/etc/sysconfig/proxyguard-client
+EnvironmentFile=-/etc/default/proxyguard-client
+ExecStart=/usr/sbin/proxyguard-client -listen ${LISTEN} -to ${TO} -tcpport 0 -fwmark ${FWMARK}
+Restart=on-failure
+PrivateDevices=yes
+DynamicUser=yes
+
+[Install]
+WantedBy=multi-user.target
