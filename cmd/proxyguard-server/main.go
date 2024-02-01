@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 
 	"codeberg.org/eduVPN/proxyguard"
 )
@@ -21,7 +22,7 @@ func (sl *ServerLogger) Log(msg string) {
 }
 
 func main() {
-	listen := flag.String("listen", "", "The IP:PORT to listen for TCP traffic.")
+	listen := flag.String("listen", "", "The IP:PORT to listen for Websocket traffic.")
 	to := flag.String("to", "", "The IP:PORT to which to send the converted UDP traffic to. Specify the WireGuard destination.")
 	version := flag.Bool("version", false, "Show version information")
 	flag.Parse()
@@ -41,12 +42,31 @@ func main() {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
-	err := proxyguard.Server(context.Background(), *listen, *to)
-	if err != nil {
-		log.Fatalf("error occurred when setting up a server: %v", err)
-	}
-}
+	sl := &ServerLogger{}
+	proxyguard.UpdateLogger(sl)
+	ctx, cancel := context.WithCancel(context.Background())
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	defer func() {
+		signal.Stop(c)
+		cancel()
+	}()
+	go func() {
+		select {
+		case <-c:
+			cancel()
+		case <-ctx.Done():
+			// do nothing
+		}
+	}()
 
-func init() {
-	proxyguard.UpdateLogger(&ServerLogger{})
+	err := proxyguard.Server(ctx, *listen, *to)
+	if err != nil {
+		select {
+		case <-ctx.Done():
+			sl.Log("exiting...")
+		default:
+			sl.Logf("error occurred when setting up a server: %v", err)
+		}
+	}
 }

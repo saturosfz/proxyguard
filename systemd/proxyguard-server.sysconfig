@@ -1,4 +1,4 @@
-# Listen for TCP connections from VPN client on this ADDR:PORT
+# Listen for Websocket connections from VPN client on this ADDR:PORT
 # OPTIONAL, DEFAULT = [::]:51820
 #LISTEN=[::]:51820
 #LISTEN=[::]:443

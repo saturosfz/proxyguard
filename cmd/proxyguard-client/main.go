@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"runtime"
 
 	"codeberg.org/eduVPN/proxyguard"
@@ -22,9 +23,9 @@ func (cl *ClientLogger) Log(msg string) {
 }
 
 func main() {
-	fwmark := flag.Int("fwmark", -1, "[Linux only] The fwmark/SO_MARK to use on the TCP client socket. -1 is disable.")
+	fwmark := flag.Int("fwmark", -1, "[Linux only] The fwmark/SO_MARK to use on the Websocket underlying TCP socket. -1 is disable.")
 	listen := flag.String("listen", "", "The IP:PORT to listen for UDP traffic.")
-	tcpsp := flag.Int("tcpport", -1, "The PORT to use as the TCP source port. The default is -1, which indicates the same port as the UDP listen. Set this to zero to allocate a freely available port.")
+	tcpsp := flag.Int("tcpport", -1, "The PORT to use as the Websocket (TCP) source port. The default is -1, which indicates the same port as the UDP listen. Set this to zero to allocate a freely available port.")
 	to := flag.String("to", "", "The IP:PORT to which to send the converted TCP traffic to. Specify the server endpoint which also runs Proxyguard.")
 	version := flag.Bool("version", false, "Show version information")
 	flag.Parse()
@@ -48,12 +49,32 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Invalid invocation warning: The --fwmark flag is a NO-OP when you're not using Linux. We will ignore it...")
 		*fwmark = -1
 	}
-	err := proxyguard.Client(context.Background(), *listen, *tcpsp, *to, *fwmark)
-	if err != nil {
-		log.Fatalf("error occurred when setting up a client: %v", err)
-	}
-}
 
-func init() {
-	proxyguard.UpdateLogger(&ClientLogger{})
+	cl := &ClientLogger{}
+	proxyguard.UpdateLogger(cl)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	defer func() {
+		signal.Stop(c)
+		cancel()
+	}()
+	go func() {
+		select {
+		case <-c:
+			cancel()
+		case <-ctx.Done():
+			// do nothing
+		}
+	}()
+	err := proxyguard.Client(ctx, *listen, *tcpsp, *to, *fwmark)
+	if err != nil {
+		select {
+		case <-ctx.Done():
+			cl.Log("exiting...")
+		default:
+			cl.Logf("error occurred when setting up a client: %v", err)
+		}
+	}
 }
