@@ -31,17 +31,6 @@ func main() {
 		fmt.Printf("proxyguard-server\n%s", proxyguard.Version())
 		os.Exit(0)
 	}
-	// listen and to flags are mandatory
-	if *listen == "" {
-		fmt.Fprintln(os.Stderr, "Invalid invaction error: Please supply the --listen flag")
-		flag.PrintDefaults()
-		os.Exit(1)
-	}
-	if *to == "" {
-		fmt.Fprintln(os.Stderr, "Invalid invocation error: Please supply the --to flag")
-		flag.PrintDefaults()
-		os.Exit(1)
-	}
 	sl := &ServerLogger{}
 	proxyguard.UpdateLogger(sl)
 	ctx, cancel := context.WithCancel(context.Background())
