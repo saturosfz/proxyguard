@@ -22,8 +22,8 @@ func (sl *ServerLogger) Log(msg string) {
 }
 
 func main() {
-	listen := flag.String("listen", "", "The IP:PORT to listen for Websocket traffic.")
-	to := flag.String("to", "", "The IP:PORT to which to send the converted UDP traffic to. Specify the WireGuard destination.")
+	listen := flag.String("listen", "127.0.0.1:51820", "The IP:PORT to listen for Websocket traffic.")
+	to := flag.String("to", "127.0.0.1:51820", "The IP:PORT to which to send the converted UDP traffic to. Specify the WireGuard destination.")
 	version := flag.Bool("version", false, "Show version information")
 	flag.Parse()
 

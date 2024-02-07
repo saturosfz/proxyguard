@@ -1,17 +1,13 @@
-# Listen for UDP packets from WireGuard on this ADDR:PORT
+# Listen for UDP packets from WireGuard
 # OPTIONAL, DEFAULT = 127.0.0.1:51820
 #LISTEN=127.0.0.1:51820
 #LISTEN=[::1]:51820
-#LISTEN=[::]:12345
 
-# Proxy to WireGuard TCP Proxy on ADDR/HOST:PORT
+# TCP WebSocket Server URL
 # REQUIRED
-TO=192.0.2.1:51820
-#TO=[2001:db8::1234]:51820
-#TO=vpn.example.org:51820
-#TO=n1.vpn.example.org:443
+TO=wss://vpn.example.org/proxyguard/
+#TO=wss://vpn.example.org/proxyguard/node.vpn.example.org/
 
 # Mark WireGuard packets for matching in routing tables
 # OPTIONAL, DEFAULT = 54321
 #FWMARK=54321
-#FWMARK=51820

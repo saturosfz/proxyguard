@@ -24,7 +24,7 @@ func (cl *ClientLogger) Log(msg string) {
 
 func main() {
 	fwmark := flag.Int("fwmark", -1, "[Linux only] The fwmark/SO_MARK to use on the Websocket underlying TCP socket. -1 is disable.")
-	listen := flag.String("listen", "", "The IP:PORT to listen for UDP traffic.")
+	listen := flag.String("listen", "127.0.0.1:51820", "The IP:PORT to listen for UDP traffic.")
 	tcpsp := flag.Int("tcpport", -1, "The PORT to use as the Websocket (TCP) source port. The default is -1, which indicates the same port as the UDP listen. Set this to zero to allocate a freely available port.")
 	to := flag.String("to", "", "The IP:PORT to which to send the converted TCP traffic to. Specify the server endpoint which also runs Proxyguard.")
 	version := flag.Bool("version", false, "Show version information")

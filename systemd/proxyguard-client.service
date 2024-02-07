@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 AmbientCapabilities=CAP_NET_ADMIN
 Environment=LISTEN=127.0.0.1:51820
-Environment=TO=vpn.example.org:51820
+Environment=TO=wss://vpn.example.org/proxyguard/
 Environment=FWMARK=54321
 EnvironmentFile=-/etc/sysconfig/proxyguard-client
 EnvironmentFile=-/etc/default/proxyguard-client

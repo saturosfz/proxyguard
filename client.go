@@ -2,7 +2,6 @@ package proxyguard
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 
@@ -54,7 +53,7 @@ func Client(ctx context.Context, listen string, tcpsp int, to string, fwmark int
 			},
 		},
 	}
-	wsc, _, err := websocket.Dial(ctx, fmt.Sprintf("ws://%s", to), &opts)
+	wsc, _, err := websocket.Dial(ctx, to, &opts)
 	if err != nil {
 		return err
 	}
