@@ -60,7 +60,7 @@ func Client(ctx context.Context, listen string, tcpsp int, to string, fwmark int
 
 	// upgrade the connection to wireguard
 	req.Header.Set("Connection", "Upgrade")
-	req.Header.Set("Upgrade", UPGRADE_PROTO)
+	req.Header.Set("Upgrade", UpgradeProto)
 
 	resp, err := c.Do(req)
 	if err != nil {
@@ -88,15 +88,15 @@ func Client(ctx context.Context, listen string, tcpsp int, to string, fwmark int
 	defer close(cancel)
 
 	if resp.StatusCode != http.StatusSwitchingProtocols {
-		return fmt.Errorf("status is not switching protocols: %v", resp.StatusCode)
+		return fmt.Errorf("status is not switching protocols, got: '%v'", resp.StatusCode)
 	}
 
 	if resp.Header.Get("Connection") != "Upgrade" {
-		return fmt.Errorf("Connection header is not Upgrade: %v", resp.Header.Get("Connection"))
+		return fmt.Errorf("the 'Connection' header is not 'Upgrade', got: '%v'", resp.Header.Get("Connection"))
 	}
 
-	if resp.Header.Get("Upgrade") != UPGRADE_PROTO {
-		return fmt.Errorf("upgrade header is not wireguard: %v", resp.Header.Get("Upgrade"))
+	if resp.Header.Get("Upgrade") != UpgradeProto {
+		return fmt.Errorf("upgrade header is not '%v', got: '%v'", UpgradeProto, resp.Header.Get("Upgrade"))
 	}
 
 	rwc, ok := rb.(io.ReadWriteCloser)

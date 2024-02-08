@@ -114,7 +114,7 @@ func inferUDPAddr(ctx context.Context, laddr *net.UDPAddr) (*net.UDPAddr, []byte
 		for {
 			select {
 			case <-ctx.Done():
-				conn.SetReadDeadline(time.Now())
+				_ = conn.SetReadDeadline(time.Now())
 			case <-cancel:
 				return
 			}
@@ -138,7 +138,7 @@ func tunnel(ctx context.Context, udpc *net.UDPConn, rw *bufio.ReadWriter) {
 		for {
 			select {
 			case <-ctx.Done():
-				udpc.SetDeadline(time.Now())
+				_ = udpc.SetDeadline(time.Now())
 			case <-cancel:
 				return
 			}

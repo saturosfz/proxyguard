@@ -1,3 +1,3 @@
 package proxyguard
 
-const UPGRADE_PROTO = "wireguard"
+const UpgradeProto = "wireguard"

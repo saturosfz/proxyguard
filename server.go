@@ -29,15 +29,15 @@ func (s tunnelServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.Header.Get("Upgrade") != UPGRADE_PROTO {
-		err := fmt.Errorf("the 'Upgrade' header is not '%s', got: '%v'", UPGRADE_PROTO, r.Header.Get("Upgrade"))
+	if r.Header.Get("Upgrade") != UpgradeProto {
+		err := fmt.Errorf("the 'Upgrade' header is not '%s', got: '%v'", UpgradeProto, r.Header.Get("Upgrade"))
 		log.Logf("Error accepting client: %v", err)
 		http.Error(w, err.Error(), http.StatusUpgradeRequired)
 		return
 	}
 
 	// upgrade to wireguard protocol
-	w.Header().Set("Upgrade", UPGRADE_PROTO)
+	w.Header().Set("Upgrade", UpgradeProto)
 	w.Header().Set("Connection", "Upgrade")
 
 	hj, ok := w.(http.Hijacker)
@@ -108,7 +108,9 @@ func Server(ctx context.Context, listen string, to string) error {
 	go func() {
 		errc <- s.Serve(tcpconn)
 	}()
-	defer s.Shutdown(ctx)
+	defer func() {
+		_ = s.Shutdown(ctx)
+	}()
 
 	for {
 		select {
