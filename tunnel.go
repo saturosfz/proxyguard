@@ -1,15 +1,13 @@
 package proxyguard
 
 import (
+	"bufio"
 	"context"
 	"encoding/binary"
 	"errors"
-	"io"
 	"net"
 	"sync"
 	"time"
-
-	"nhooyr.io/websocket"
 )
 
 // bufSize is the total length that we receive at once
@@ -50,26 +48,23 @@ func writeUDPChunks(conn net.Conn, buf []byte) int {
 	}
 }
 
-// writeWS writes a buffer to the connection
+// writeTCP writes a buffer to the connection
 // This buffer is prefixed with a 2 byte length specified with n
-func writeWS(ctx context.Context, wsc *websocket.Conn, buf []byte, n int) error {
+func writeTCP(w *bufio.Writer, buf []byte, n int) error {
 	// Put the header length at the front
 	binary.BigEndian.PutUint16(buf[:hdrLength], uint16(n))
 	// store the length and packet itself
-	werr := wsc.Write(ctx, websocket.MessageBinary, buf)
+	_, werr := w.Write(buf)
+	w.Flush()
 	return werr
 }
 
-// wsToUDP reads from the websocket connection wsc and writes packets to the udpc connection
-// The incoming websocket packets are encapsulated UDP packets with a 2 byte length prefix
-func wsToUDP(ctx context.Context, wsc *websocket.Conn, udpc *net.UDPConn) error {
+// tcpToUDP reads from the TCP reader r and writes packets to the udpc connection
+// The incoming TCP packets are encapsulated UDP packets with a 2 byte length prefix
+func tcpToUDP(r *bufio.Reader, udpc *net.UDPConn) error {
 	var bufr [bufSize]byte
 	todo := 0
 	for {
-		_, r, err := wsc.Reader(ctx)
-		if err != nil {
-			return err
-		}
 		n, rerr := r.Read(bufr[todo:])
 		if n > 0 {
 			todo += n
@@ -91,12 +86,12 @@ func wsToUDP(ctx context.Context, wsc *websocket.Conn, udpc *net.UDPConn) error 
 
 // udpToWS reads from the UDP connection udpc and writes packets to the wsc connection
 // The incoming UDP packets are encapsulated inside TCP with a 2 byte length prefix
-func udpToWS(ctx context.Context, udpc *net.UDPConn, wsc *websocket.Conn) error {
+func udpToTCP(udpc *net.UDPConn, w *bufio.Writer) error {
 	var bufs [bufSize]byte
 	for {
 		n, _, rerr := udpc.ReadFromUDP(bufs[2:])
 		if n > 0 {
-			werr := writeWS(ctx, wsc, bufs[:n+2], n)
+			werr := writeTCP(w, bufs[:n+2], n)
 			if werr != nil {
 				return werr
 			}
@@ -137,22 +132,7 @@ func inferUDPAddr(ctx context.Context, laddr *net.UDPAddr) (*net.UDPAddr, []byte
 	return nil, nil, errors.New("could not infer port because address was nil")
 }
 
-func shouldLogErr(ctx context.Context, err error) bool {
-	select {
-	case <-ctx.Done():
-		return false
-	default:
-		if errors.Is(err, io.EOF) {
-			return false
-		}
-		if websocket.CloseStatus(err) == websocket.StatusNormalClosure {
-			return false
-		}
-		return true
-	}
-}
-
-func tunnel(ctx context.Context, udpc *net.UDPConn, wsc *websocket.Conn) {
+func tunnel(ctx context.Context, udpc *net.UDPConn, rw *bufio.ReadWriter) {
 	cancel := make(chan struct{})
 	go func() {
 		for {
@@ -170,17 +150,17 @@ func tunnel(ctx context.Context, udpc *net.UDPConn, wsc *websocket.Conn) {
 	// read from udp and write to ws socket
 	go func() {
 		defer wg.Done()
-		err := udpToWS(ctx, udpc, wsc)
-		if err != nil && shouldLogErr(ctx, err) {
-			log.Logf("UDP -> WS completed with error: %v", err)
+		err := udpToTCP(udpc, rw.Writer)
+		if err != nil {
+			log.Logf("UDP -> TCP completed with error: %v", err)
 		}
 	}()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		err := wsToUDP(ctx, wsc, udpc)
-		if err != nil && shouldLogErr(ctx, err) {
-			log.Logf("WS -> UDP completed with error: %v", err)
+		err := tcpToUDP(rw.Reader, udpc)
+		if err != nil {
+			log.Logf("TCP -> UDP completed with error: %v", err)
 		}
 	}()
 	wg.Wait()

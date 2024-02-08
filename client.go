@@ -1,12 +1,12 @@
 package proxyguard
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
-
-	"nhooyr.io/websocket"
 )
 
 // Client creates a client that forwards UDP to TCP
@@ -27,7 +27,7 @@ func Client(ctx context.Context, listen string, tcpsp int, to string, fwmark int
 		}
 	}()
 
-	log.Log("Connecting to Websocket server...")
+	log.Log("Connecting to HTTP server...")
 	if tcpsp == -1 {
 		laddr, err := net.ResolveTCPAddr("tcp", listen)
 		if err != nil {
@@ -47,19 +47,63 @@ func Client(ctx context.Context, listen string, tcpsp int, to string, fwmark int
 			},
 		}
 	}
-	opts := websocket.DialOptions{
-		HTTPClient: &http.Client{
-			Transport: &http.Transport{
-				Dial: dialer.Dial,
-			},
+	c := &http.Client{
+		Transport: &http.Transport{
+			Dial: dialer.Dial,
 		},
 	}
-	wsc, _, err := websocket.Dial(ctx, fmt.Sprintf("ws://%s", to), &opts)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", to, nil)
 	if err != nil {
 		return err
 	}
-	defer wsc.Close(websocket.StatusNormalClosure, "")
-	log.Log("Connected to Websocket server")
+
+	// upgrade the connection to wireguard
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Upgrade", UPGRADE_PROTO)
+
+	resp, err := c.Do(req)
+	if err != nil {
+		return err
+	}
+	// TODO: why does nhooyr.io/websocket set the body to nil and make a rb copy?
+	// is this needed?
+	rb := resp.Body
+	resp.Body = nil
+
+	// TODO: clean this up?
+	cancel := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				rb.Close()
+				return
+			case <-cancel:
+				rb.Close()
+				return
+			}
+		}
+	}()
+	defer close(cancel)
+
+	if resp.StatusCode != http.StatusSwitchingProtocols {
+		return fmt.Errorf("status is not switching protocols: %v", resp.StatusCode)
+	}
+
+	if resp.Header.Get("Connection") != "Upgrade" {
+		return fmt.Errorf("Connection header is not Upgrade: %v", resp.Header.Get("Connection"))
+	}
+
+	if resp.Header.Get("Upgrade") != UPGRADE_PROTO {
+		return fmt.Errorf("upgrade header is not wireguard: %v", resp.Header.Get("Upgrade"))
+	}
+
+	rwc, ok := rb.(io.ReadWriteCloser)
+	if !ok {
+		return fmt.Errorf("response body is not of type io.ReadWriteCloser: %T", rb)
+	}
+	log.Log("Connected to HTTP server")
 
 	udpaddr, err := net.ResolveUDPAddr("udp", listen)
 	if err != nil {
@@ -76,14 +120,17 @@ func Client(ctx context.Context, listen string, tcpsp int, to string, fwmark int
 		return err
 	}
 	defer wgconn.Close()
-	log.Log("Client is ready for converting UDP<->WS")
+	log.Log("Client is ready for converting UDP<->HTTP")
+
+	// create a buffered read writer
+	rw := bufio.NewReadWriter(bufio.NewReader(rwc), bufio.NewWriter(rwc))
 
 	// first forward the outstanding packet
-	err = writeWS(ctx, wsc, first, len(first)-hdrLength)
+	err = writeTCP(rw.Writer, first, len(first)-hdrLength)
 	if err != nil {
 		log.Logf("Failed forwarding first outstanding packet: %v", err)
 	}
 
-	tunnel(ctx, wgconn, wsc)
+	tunnel(ctx, wgconn, rw)
 	return nil
 }
