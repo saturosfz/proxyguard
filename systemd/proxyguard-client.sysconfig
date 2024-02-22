@@ -3,10 +3,15 @@
 #LISTEN=127.0.0.1:51820
 #LISTEN=[::1]:51820
 
-# HTTP Destination
+# HTTP(S) Destination
 # REQUIRED
 TO=https://vpn.example.org/proxyguard/
 #TO=https://vpn.example.org/proxyguard/node.vpn.example.org/
+
+# the IPs assigned to the hostname specified in `TO` to allow for 
+# (re)connecting without working DNS
+# REQUIRED
+PEER_IPS=192.0.2.5,2001:db8::5
 
 # Mark HTTP packets for matching in routing tables
 # OPTIONAL, DEFAULT = 54321
