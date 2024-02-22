@@ -17,14 +17,14 @@ const versionReleased = false
 // - Returns a default
 func Version() string {
 	if versionReleased {
-		return fmt.Sprintf("Version: %s", version)
+		return version
 	}
 	if dbg, ok := debug.ReadBuildInfo(); ok {
 		for _, s := range dbg.Settings {
 			if s.Key == "vcs.revision" {
-				return fmt.Sprintf("Dev version: %s with commit: %s", version, s.Value)
+				return fmt.Sprintf("(devel) %s", s.Value)
 			}
 		}
 	}
-	return fmt.Sprintf("Dev version: %s", version)
+	return "(unknown)"
 }

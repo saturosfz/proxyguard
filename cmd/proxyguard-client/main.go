@@ -38,7 +38,7 @@ func main() {
 	}
 
 	if *version {
-		fmt.Printf("proxyguard-client\n%s", proxyguard.Version())
+		fmt.Println(proxyguard.Version())
 		os.Exit(0)
 	}
 	// listen and to flags are mandatory
