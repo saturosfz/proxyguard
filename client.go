@@ -68,6 +68,8 @@ func (c *Client) configureSocket(pips []string) net.Dialer {
 		Control: func(_, _ string, conn syscall.RawConn) error {
 			var seterr error
 			err := conn.Control(func(fd uintptr) {
+				log.Log("Setting up socket...")
+				defer log.Log("Done setting up socket...")
 				if c.TCPSourcePort > 0 && runtime.GOOS == "linux" {
 					// if we fail to set the reuse port option
 					// it is fine, we only log
@@ -200,6 +202,8 @@ func (c *Client) tryTunnel(ctx context.Context, peer string, pips []string, firs
 	// upgrade the connection to wireguard
 	req.Header.Set("Connection", "Upgrade")
 	req.Header.Set("Upgrade", UpgradeProto)
+
+	log.Log("Sending HTTP Upgrade...")
 
 	resp, err := c.httpc.Do(req)
 	if err != nil {
