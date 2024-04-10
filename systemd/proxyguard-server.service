@@ -1,15 +1,22 @@
 [Unit]
-Description=UDP over HTTP Proxy Server
+Description=Proxy UDP traffic over TCP and HTTP(S)
 
 [Service]
 Environment=LISTEN=127.0.0.1:51820
 Environment=TO=127.0.0.1:51820
-EnvironmentFile=-/etc/sysconfig/proxyguard-server
-EnvironmentFile=-/etc/default/proxyguard-server
-ExecStart=/usr/sbin/proxyguard-server -listen ${LISTEN} -to ${TO}
+ExecStart=proxyguard-server -listen ${LISTEN} -to ${TO}
 Restart=on-failure
+ProtectSystem=strict
 PrivateDevices=yes
+PrivateTmp=yes
+PrivateUsers=yes
+ProtectHome=yes
 DynamicUser=yes
+CapabilityBoundingSet=
+SystemCallFilter=@system-service
+NoNewPrivileges=yes
+RestrictNamespaces=yes
+RestrictAddressFamilies=AF_INET AF_INET6
 
 [Install]
 WantedBy=multi-user.target

@@ -16,6 +16,23 @@ Run: `make`
 
 > **_NOTE:_**  You can build static binaries with `CGO_ENABLED=0 make`
 
+# Installing
+
+Run: `make install`
+
+This will install the daemons under `/usr/local` and add the `systemd` 
+service files. Do not forget to run `systemctl daemon-reload`. After that you
+can start the `proxyguard-server` and `proxyguard-client` services.
+
+To configure them, use e.g. `systemctl edit proxyguard-server` and override the
+variables you see there with your own values as needed, for example if 
+WireGuard is listening on port 443, you can add the following:
+
+```ini
+[Service]
+Environment=TO=127.0.0.1:443
+```
+
 # Running
 This tool is focused on a client-server model. This proxy thus needs to run for every client and for a server. The server mode accepts multiple clients.
 
