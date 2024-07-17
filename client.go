@@ -37,6 +37,9 @@ type Client struct {
 	// pips are the ips of the peer that the socket will attempt to connect to
 	SetupSocket func(fd int, pips []string)
 
+	// UserAgent is the HTTP user agent to use for HTTP requests
+	UserAgent string
+
 	// httpc is the cached HTTP client
 	httpc *http.Client
 }
@@ -194,6 +197,9 @@ func (c *Client) tryTunnel(ctx context.Context, peer string, pips []string, firs
 	req, err := http.NewRequestWithContext(ctx, "GET", peer, nil)
 	if err != nil {
 		return &fatalError{Err: err}
+	}
+	if c.UserAgent != "" {
+		req.Header.Add("User-Agent", c.UserAgent)
 	}
 
 	// upgrade the connection to UDP over TCP
