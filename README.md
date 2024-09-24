@@ -58,6 +58,8 @@ proxyguard-client --listen 127.0.0.1:1337 --to http://vpn.example.com
 
 > **_NOTE:_**  The default HTTP client source port is the same as the UDP listen port, 1337 in this case. To change this, pass --tcpport. You can set it to 0 to automatically pick an available TCP source port.
 
+> **_NOTE:_**  In case HTTPS is used, the client only allows servers with TLS >= 1.3
+
 The received packets from the server (in this case `vpn.example.com`) are forwarded back to the address of the first received UDP packet. So if the proxy receives an UDP packet from port x first, it will remember this as the destination for received packets. This is so that WireGuard can use a dynamic port.
 
 
