@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/binary"
-	"errors"
 	"net"
 	"sync"
 	"time"
@@ -100,36 +99,6 @@ func udpToTCP(udpc *net.UDPConn, w *bufio.Writer) error {
 			return rerr
 		}
 	}
-}
-
-// inferUDPAddr gets the UDP address from the first packet that is sent to the proxy
-func inferUDPAddr(ctx context.Context, laddr *net.UDPAddr) (*net.UDPAddr, []byte, error) {
-	conn, err := net.ListenUDP("udp", laddr)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer conn.Close()
-	cancel := make(chan struct{})
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				_ = conn.SetReadDeadline(time.Now())
-			case <-cancel:
-				return
-			}
-		}
-	}()
-	defer close(cancel)
-	var tempbuf [bufSize]byte
-	n, addr, err := conn.ReadFromUDP(tempbuf[hdrLength:])
-	if err != nil {
-		return nil, nil, err
-	}
-	if addr != nil {
-		return addr, tempbuf[:n+hdrLength], nil
-	}
-	return nil, nil, errors.New("could not infer port because address was nil")
 }
 
 func tunnel(ctx context.Context, udpc *net.UDPConn, rw *bufio.ReadWriter) error {

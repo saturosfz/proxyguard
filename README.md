@@ -48,10 +48,10 @@ This tool is focused on a client-server model. This proxy thus needs to run for 
 
 ## Client example
 
-This example listens on local UDP port 1337 and forwards TCP packets (with a HTTP Upgrade handshake) to vpn.example.com
+This example listens on local UDP port 1337, expects packets from 127.0.0.1:51820 (WireGuard) and forwards TCP packets (with a HTTP Upgrade handshake) to vpn.example.com
 
 ```bash
-proxyguard-client --listen 127.0.0.1:1337 --to http://vpn.example.com
+proxyguard-client --listen 127.0.0.1:1337 --from 127.0.0.1:51820 --to http://vpn.example.com
 ```
 
 > **_NOTE:_**  If you test the client on Linux, you might also need to add --fwmark 51820 (or some other number that the WG connection configures) to mark that the packets going out of this proxy are encrypted, preventing a routing loop. 51820 is the default for WireGuard. Note that this needs root.

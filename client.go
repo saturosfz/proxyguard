@@ -21,6 +21,9 @@ type Client struct {
 	// Listen is the IP:PORT for the UDP listener
 	Listen string
 
+	// From is the IP:PORT from which the UDP traffic originates
+	From string
+
 	// TCPSourcePort is the source port for the TCP connection
 	TCPSourcePort int
 
@@ -241,14 +244,12 @@ func (c *Client) tryTunnel(ctx context.Context, peer string, pips []string, firs
 
 	udpaddr, err := net.ResolveUDPAddr("udp", c.Listen)
 	if err != nil {
-		return err
+		return &fatalError{Err: err}
 	}
-	log.Log("Waiting for first UDP packet...")
-	wgaddr, packet, err := inferUDPAddr(ctx, udpaddr)
+	wgaddr, err := net.ResolveUDPAddr("udp", c.From)
 	if err != nil {
-		return err
+		return &fatalError{Err: err}
 	}
-	log.Logf("First UDP packet received with address: %s", wgaddr.String())
 	wgconn, err := net.DialUDP("udp", udpaddr, wgaddr)
 	if err != nil {
 		return err
@@ -258,12 +259,6 @@ func (c *Client) tryTunnel(ctx context.Context, peer string, pips []string, firs
 
 	// create a buffered read writer
 	rw := bufio.NewReadWriter(bufio.NewReader(rwc), bufio.NewWriter(rwc))
-
-	// first forward the outstanding packet
-	err = writeTCP(rw.Writer, packet, len(packet)-hdrLength)
-	if err != nil {
-		log.Logf("Failed forwarding first outstanding packet: %v", err)
-	}
 
 	return tunnel(ctx, wgconn, rw)
 }

@@ -25,6 +25,7 @@ func (cl *ClientLogger) Log(msg string) {
 
 func main() {
 	fwmark := flag.Int("fwmark", -1, "[Linux only] The fwmark/SO_MARK to use on the underlying TCP socket. -1 is disable.")
+	from := flag.String("from", "", "The IP:PORT from which the UDP traffic originates.")
 	listen := flag.String("listen", "", "The IP:PORT to listen for UDP traffic.")
 	tcpsp := flag.Int("tcpport", 0, "The PORT to use as the TCP source port. The default is 0, which means a port chosen by the kernel.")
 	to := flag.String("to", "", "The IP:PORT to which to send the converted TCP traffic to. Specify the server endpoint which also runs ProxyGuard.")
@@ -44,6 +45,11 @@ func main() {
 	// listen and to flags are mandatory
 	if *listen == "" {
 		fmt.Fprintln(os.Stderr, "Invalid invaction error: Please supply the --listen flag")
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+	if *from == "" {
+		fmt.Fprintln(os.Stderr, "Invalid invaction error: Please supply the --from flag")
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
@@ -77,6 +83,7 @@ func main() {
 	}()
 
 	client := proxyguard.Client{
+		From: *from,
 		Listen:        *listen,
 		TCPSourcePort: *tcpsp,
 		Fwmark:        *fwmark,
