@@ -5,12 +5,12 @@ Wants=network-online.target
 
 [Service]
 AmbientCapabilities=CAP_NET_ADMIN
-Environment=LISTEN=127.0.0.1:51820
-Environment=FROM=127.0.0.1:51820
+Environment=LISTEN_PORT=51821
+Environment=FORWARD_PORT=51820
 Environment=TO=https://vpn.example.org/proxyguard/
 Environment=PEER_IPS=192.0.2.5,2001:db8::5
 Environment=FWMARK=54321
-ExecStart=proxyguard-client -listen ${LISTEN} -from ${FROM} -to ${TO} -peer-ips ${PEER_IPS} -fwmark ${FWMARK}
+ExecStart=proxyguard-client -listen-port ${LISTEN_PORT} -forward-port ${FORWARD_PORT} -to ${TO} -peer-ips ${PEER_IPS} -fwmark ${FWMARK}
 Restart=on-failure
 PrivateDevices=yes
 DynamicUser=yes

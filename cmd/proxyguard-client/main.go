@@ -25,9 +25,9 @@ func (cl *ClientLogger) Log(msg string) {
 
 func main() {
 	fwmark := flag.Int("fwmark", -1, "[Linux only] The fwmark/SO_MARK to use on the underlying TCP socket. -1 is disable.")
-	from := flag.String("from", "", "The IP:PORT from which the UDP traffic originates.")
-	listen := flag.String("listen", "", "The IP:PORT to listen for UDP traffic.")
-	tcpsp := flag.Int("tcpport", 0, "The PORT to use as the TCP source port. The default is 0, which means a port chosen by the kernel.")
+	forwardport := flag.Int("forward-port", 51820, "The PORT from which the UDP traffic originates.")
+	listenport := flag.Int("listen-port", 51821, "The PORT to listen for UDP traffic.")
+	tcpsp := flag.Int("tcp-port", 0, "The PORT to use as the TCP source port. The default is 0, which means a port chosen by the kernel.")
 	to := flag.String("to", "", "The IP:PORT to which to send the converted TCP traffic to. Specify the server endpoint which also runs ProxyGuard.")
 	version := flag.Bool("version", false, "Show version information")
 	pipss := flag.String("peer-ips", "", "Set the IP addresses (separated by commas) to use for the server peer such that DNS resolution does not fail due to timing issues of starting the proxy e.g. on boot, before DNS resolution is ready")
@@ -41,17 +41,6 @@ func main() {
 	if *version {
 		fmt.Printf("proxyguard-client\n%s", proxyguard.Version())
 		os.Exit(0)
-	}
-	// listen and to flags are mandatory
-	if *listen == "" {
-		fmt.Fprintln(os.Stderr, "Invalid invaction error: Please supply the --listen flag")
-		flag.PrintDefaults()
-		os.Exit(1)
-	}
-	if *from == "" {
-		fmt.Fprintln(os.Stderr, "Invalid invaction error: Please supply the --from flag")
-		flag.PrintDefaults()
-		os.Exit(1)
 	}
 	if *to == "" {
 		fmt.Fprintln(os.Stderr, "Invalid invocation error: Please supply the --to flag")
@@ -83,8 +72,8 @@ func main() {
 	}()
 
 	client := proxyguard.Client{
-		From: *from,
-		Listen:        *listen,
+		ForwardPort: *forwardport,
+		ListenPort:        *listenport,
 		TCPSourcePort: *tcpsp,
 		Fwmark:        *fwmark,
 	}

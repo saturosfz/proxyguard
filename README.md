@@ -48,36 +48,37 @@ This tool is focused on a client-server model. This proxy thus needs to run for 
 
 ## Client example
 
-This example listens on local UDP port 1337, expects packets from 127.0.0.1:51820 (WireGuard) and forwards TCP packets (with a HTTP Upgrade handshake) to vpn.example.com
+This example listens on local UDP port 51821, expects packets from UDP port 51820 (WireGuard listen port) and forwards TCP packets (with a HTTP Upgrade handshake) to vpn.example.com
 
 ```bash
-proxyguard-client --listen 127.0.0.1:1337 --from 127.0.0.1:51820 --to http://vpn.example.com
+proxyguard-client --to http://vpn.example.com
 ```
 
-> **_NOTE:_**  If you test the client on Linux, you might also need to add --fwmark 51820 (or some other number that the WG connection configures) to mark that the packets going out of this proxy are encrypted, preventing a routing loop. 51820 is the default for WireGuard. Note that this needs root.
-
-> **_NOTE:_**  The default HTTP client source port is the same as the UDP listen port, 1337 in this case. To change this, pass --tcpport. You can set it to 0 to automatically pick an available TCP source port.
+> **_NOTE:_**  If you test the client on Linux, you might also need to add --fwmark 51820 (or some other number that the WG connection configures) to mark that the packets going out of this proxy are encrypted, preventing a routing loop. 51820 is the default for WireGuard. Note that this needs root or the binary needs `CAP_NET_ADMIN`.
 
 > **_NOTE:_**  In case HTTPS is used, the client only allows servers with TLS >= 1.3
 
-The received packets from the server (in this case `vpn.example.com`) are forwarded back to the address of the first received UDP packet. So if the proxy receives an UDP packet from port x first, it will remember this as the destination for received packets. This is so that WireGuard can use a dynamic port.
-
-
-To then use this with WireGuard, you need to change the endpoint in the WireGuard config:
+To then use this with WireGuard, you need to change the endpoint in the WireGuard config and make sure the listen port is set
 
 ```ini
+[Interface]
+PrivateKey = ...
+Address = ...
+DNS = ...
+ListenPort = 51820
+
 [Peer]
-PublicKey = pubkeyhere
-AllowedIPs = 0.0.0.0/0, ::0
-Endpoint = 127.0.0.1:1337
+PublicKey = ...
+AllowedIPs = ...
+Endpoint = 127.0.0.1:51821
 ```
 
 ## Server example
 
-This example starts a HTTP server on TCP port 1337 and forwards UDP packets to localhost 51820, the WireGuard port.
+This example starts a HTTP server on TCP port 51821 and forwards UDP packets to localhost 51820, the WireGuard port.
 
 ```bash
-proxyguard-server --listen 0.0.0.0:1337 --to 127.0.0.1:51820
+proxyguard-server --listen 0.0.0.0:51821 --to 127.0.0.1:51820
 ```
 
 # Deployment

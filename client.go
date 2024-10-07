@@ -18,11 +18,11 @@ import (
 
 // Client represents a ProxyGuard client
 type Client struct {
-	// Listen is the IP:PORT for the UDP listener
-	Listen string
+	// Listen is the PORT for the UDP listener
+	ListenPort int
 
-	// From is the IP:PORT from which the UDP traffic originates
-	From string
+	// ForwardPort is the PORT from which the UDP traffic originates
+	ForwardPort int
 
 	// TCPSourcePort is the source port for the TCP connection
 	TCPSourcePort int
@@ -33,8 +33,10 @@ type Client struct {
 	Fwmark int
 
 	// Ready is the callback that is called when the Proxy is connected to the peer
-	// This only gets called on first connect of `Tunnel`
-	Ready func()
+	// In this callback, the callback should start WireGuard if not started yet
+	// This callback returns the port that WireGuard is listening on
+	// Which will set the `ForwardPort` if only and if it is not set yet
+	Ready func() (int, error)
 
 	// SetupSocket is called when the socket is setting up
 	// fd is the file descriptor of the socket
@@ -239,16 +241,25 @@ func (c *Client) tryTunnel(ctx context.Context, peer string, pips []string, firs
 	log.Log("Connected to HTTP server")
 
 	if c.Ready != nil && first {
-		c.Ready()
+		// This calls the ready callback
+		// Which means the client can begin setting up wireguard
+		// This callback should return the port WireGuard is listening on
+		fwp, err := c.Ready() 
+		if err != nil {
+			return &fatalError{Err: fmt.Errorf("Client ready callback gave an error: %w", err)}
+		}
+		if c.ForwardPort == 0 {
+			c.ForwardPort = fwp
+		}
 	}
 
-	udpaddr, err := net.ResolveUDPAddr("udp", c.Listen)
-	if err != nil {
-		return &fatalError{Err: err}
+	udpaddr := &net.UDPAddr{
+		IP: net.ParseIP("127.0.0.1"),
+		Port: c.ListenPort,
 	}
-	wgaddr, err := net.ResolveUDPAddr("udp", c.From)
-	if err != nil {
-		return &fatalError{Err: err}
+	wgaddr := &net.UDPAddr{
+		IP: net.ParseIP("127.0.0.1"),
+		Port: c.ForwardPort,
 	}
 	wgconn, err := net.DialUDP("udp", udpaddr, wgaddr)
 	if err != nil {
