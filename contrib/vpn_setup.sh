@@ -43,7 +43,8 @@ if [ "" == "${PEER_IPS}" ]; then
 fi
 
 # configure proxyguard-client
-echo "TO=${PROXY_ENDPOINT}" | sudo tee ${CFG_FILE} > /dev/null
+echo "LISTEN_PORT=54321" | sudo tee ${CFG_FILE} > /dev/null
+echo "TO=${PROXY_ENDPOINT}" | sudo tee -a ${CFG_FILE} > /dev/null
 echo "PEER_IPS=${PEER_IPS}" | sudo tee -a ${CFG_FILE} > /dev/null
 
 nmcli con import type wireguard file ${VPN_CONF_FILE}

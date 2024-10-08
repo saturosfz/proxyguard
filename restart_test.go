@@ -8,21 +8,9 @@ import (
 )
 
 func TestRestartUntilErr(t *testing.T) {
-	// test boolean 'first' argument
-	gf := false
-
-	_ = restartUntilErr(context.Background(), func(_ context.Context, first bool) error {
-		gf = first
-		return errors.New("exit")
-	}, []time.Duration{0 * time.Second}, time.Duration(1*time.Hour))
-
-	if !gf {
-		t.Fatalf("first argument true is not passed")
-	}
-
 	tErr := errors.New("test")
 	// test if a function exits when an error occurs
-	gErr := restartUntilErr(context.Background(), func(_ context.Context, _ bool) error {
+	gErr := restartUntilErr(context.Background(), func(_ context.Context) error {
 		return tErr
 	}, []time.Duration{0 * time.Second}, time.Duration(1*time.Hour))
 
@@ -41,7 +29,7 @@ func TestRestartUntilErr(t *testing.T) {
 	restarted := 0
 
 	st := time.Now()
-	_ = restartUntilErr(context.Background(), func(_ context.Context, _ bool) error {
+	_ = restartUntilErr(context.Background(), func(_ context.Context) error {
 		if restarted == n {
 			return errors.New("return here")
 		}

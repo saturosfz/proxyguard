@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -21,9 +22,6 @@ type Client struct {
 	// Listen is the PORT for the UDP listener
 	ListenPort int
 
-	// ForwardPort is the PORT from which the UDP traffic originates
-	ForwardPort int
-
 	// TCPSourcePort is the source port for the TCP connection
 	TCPSourcePort int
 
@@ -32,77 +30,42 @@ type Client struct {
 	// This is only set on Linux
 	Fwmark int
 
-	// Ready is the callback that is called when the Proxy is connected to the peer
-	// In this callback, the callback should start WireGuard if not started yet
-	// This callback returns the port that WireGuard is listening on
-	// Which will set the `ForwardPort` if only and if it is not set yet
-	Ready func() (int, error)
+	// Peer is the peer to connect to
+	Peer string
+
+	// PeerIPS is the list of DNS resolved IPs for the Peer
+	// You may leave this empty and automatically resolve PeerIPs using
+	// `SetupDNS`
+	PeerIPS []string
 
 	// SetupSocket is called when the socket is setting up
 	// fd is the file descriptor of the socket
-	// pips are the ips of the peer that the socket will attempt to connect to
-	SetupSocket func(fd int, pips []string)
+	SetupSocket func(fd int)
 
 	// UserAgent is the HTTP user agent to use for HTTP requests
 	UserAgent string
-
-	// httpc is the cached HTTP client
-	httpc *http.Client
 }
 
-// configureSocket creates a TCP dial with fwmark/SO_MARK set
-// it also calls the GotClientFD updater
-func (c *Client) configureSocket(pips []string) net.Dialer {
-	d := net.Dialer{
-		Control: func(_, _ string, conn syscall.RawConn) error {
-			var seterr error
-			err := conn.Control(func(fd uintptr) {
-				if c.TCPSourcePort > 0 && runtime.GOOS == "linux" {
-					// if we fail to set the reuse port option
-					// it is fine, we only log
-					sporterr := socketReuseSport(int(fd))
-					if sporterr != nil {
-						log.Logf("error re-using source port: %v", sporterr)
-					}
-				}
-				if c.Fwmark > 0 && runtime.GOOS == "linux" {
-					seterr = socketFWMark(int(fd), c.Fwmark)
-				}
-				if c.SetupSocket != nil {
-					c.SetupSocket(int(fd), pips)
-				}
-			})
-			if err != nil {
-				return err
-			}
-			return seterr
-		},
-		LocalAddr: &net.TCPAddr{
-			Port: c.TCPSourcePort,
-		},
-		Timeout: 10 * time.Second,
+func (c *Client) SetupDNS(ctx context.Context) error {
+	// peer IPs already resolved
+	if len(c.PeerIPS) > 0 {
+		return nil
 	}
-	return d
+	u, err := url.Parse(c.Peer)
+	if err != nil {
+		return err
+	}
+
+	gpips, err := net.DefaultResolver.LookupHost(ctx, u.Hostname())
+	if err != nil {
+		return err
+	}
+	c.PeerIPS = gpips
+	return nil
 }
 
-// Tunnel tunnels a connection to peer `peer`
-// The peer has IP addresses `pips`, if empty a DNS request is done
-func (c *Client) Tunnel(ctx context.Context, peer string, pips []string) error {
-	// do a DNS request and fill peer IPs
-	// if none are given
-	if len(pips) == 0 {
-		u, err := url.Parse(peer)
-		if err != nil {
-			return err
-		}
-
-		gpips, err := net.DefaultResolver.LookupHost(ctx, u.Hostname())
-		if err != nil {
-			return err
-		}
-		pips = gpips
-	}
-
+// Tunnel tunnels a connection from wireguard connection port `wglisten`
+func (c *Client) Tunnel(ctx context.Context, wglisten int) error {
 	// If the tunnel exits within this delta, that restart is marked as 'failed'
 	// and the next wait is cycled through
 	d := time.Duration(10 * time.Second)
@@ -116,10 +79,9 @@ func (c *Client) Tunnel(ctx context.Context, peer string, pips []string) error {
 		time.Duration(10 * time.Second),
 	}
 
-	err := restartUntilErr(ctx, func(ctx context.Context, first bool) error {
-		err := c.tryTunnel(ctx, peer, pips, first)
-
-		// if a fatal error is returned, exit immediately
+	err := restartUntilErr(ctx, func(ctx context.Context) error {
+		log.Logf("waiting for traffic...")
+		err := c.tryTunnel(ctx, wglisten)
 		var fErr *fatalError
 		if errors.As(err, &fErr) {
 			log.Logf("%v, exiting...", fErr)
@@ -132,11 +94,71 @@ func (c *Client) Tunnel(ctx context.Context, peer string, pips []string) error {
 		}
 		return nil
 	}, wt, d)
-
 	return err
 }
 
-func (c *Client) dialContext(ctx context.Context, dialer net.Dialer, network string, addr string, peerhost string, pips []string) (conn net.Conn, err error) {
+type fatalError struct {
+	Err error
+}
+
+func (fe *fatalError) Error() string {
+	return fmt.Sprintf("fatal error occurred: %v", fe.Err.Error())
+}
+
+// tcpHandshake is a wrapper around a net.TCPConn and a bufio.ReadWriter
+// that (re)does a HTTP upgrade if the connection has previously been shutdown to e.g. an idle timeout
+// or when it still needs to be established
+// It does this by only re-establishing when a write is called
+type tcpHandshake struct {
+	ctx         context.Context
+	peer        string
+	pips        []string
+	fwmark      int
+	sourcePort  int
+	setupSocket func(fd int)
+	userAgent   string
+	httpc       *http.Client
+	rwc         io.ReadWriteCloser
+	established bool
+	mu          sync.RWMutex
+}
+
+// configureSocket creates a TCP dial with fwmark/SO_MARK set
+// it also calls the GotClientFD updater
+func (th *tcpHandshake) configureSocket() net.Dialer {
+	d := net.Dialer{
+		Control: func(_, _ string, conn syscall.RawConn) error {
+			var seterr error
+			err := conn.Control(func(fd uintptr) {
+				if th.sourcePort > 0 && runtime.GOOS == "linux" {
+					// if we fail to set the reuse port option
+					// it is fine, we only log
+					sporterr := socketReuseSport(int(fd))
+					if sporterr != nil {
+						log.Logf("error re-using source port: %v", sporterr)
+					}
+				}
+				if th.fwmark > 0 && runtime.GOOS == "linux" {
+					seterr = socketFWMark(int(fd), th.fwmark)
+				}
+				if th.setupSocket != nil {
+					th.setupSocket(int(fd))
+				}
+			})
+			if err != nil {
+				return err
+			}
+			return seterr
+		},
+		LocalAddr: &net.TCPAddr{
+			Port: th.sourcePort,
+		},
+		Timeout: 10 * time.Second,
+	}
+	return d
+}
+
+func dialContext(ctx context.Context, dialer net.Dialer, network string, addr string, peerhost string, pips []string) (conn net.Conn, err error) {
 	// no peer ips defined
 	// just do the dial context with the configured dialer
 	if len(pips) == 0 {
@@ -169,19 +191,9 @@ func (c *Client) dialContext(ctx context.Context, dialer net.Dialer, network str
 	return conn, err
 }
 
-type fatalError struct {
-	Err error
-}
-
-func (fe *fatalError) Error() string {
-	return fmt.Sprintf("fatal error occurred: %v", fe.Err.Error())
-}
-
-// tryTunnel tries to tunnel the connection by connecting to HTTP peer `to` with IPs `pips`
-// the boolean `first` is set if it's the first connect to the server
-func (c *Client) tryTunnel(ctx context.Context, peer string, pips []string, first bool) (err error) {
+func (th *tcpHandshake) Handshake() error {
 	log.Log("Connecting to HTTP server...")
-	u, err := url.Parse(peer)
+	u, err := url.Parse(th.peer)
 	if err != nil {
 		return &fatalError{Err: err}
 	}
@@ -189,30 +201,30 @@ func (c *Client) tryTunnel(ctx context.Context, peer string, pips []string, firs
 	peerhost := u.Host
 
 	// set fwmark on the socket
-	dialer := c.configureSocket(pips)
-	if c.httpc == nil {
-		c.httpc = &http.Client{}
+	dialer := th.configureSocket()
+	if th.httpc == nil {
+		th.httpc = &http.Client{}
 	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.DialContext = func(ctx context.Context, network string, addr string) (conn net.Conn, err error) {
-		return c.dialContext(ctx, dialer, network, addr, peerhost, pips)
+			return dialContext(ctx, dialer, network, addr, peerhost, th.pips)
 	}
 	transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS13}
-	c.httpc.Transport = transport
+	th.httpc.Transport = transport
 
-	req, err := http.NewRequestWithContext(ctx, "GET", peer, nil)
+	req, err := http.NewRequestWithContext(th.ctx, "GET", th.peer, nil)
 	if err != nil {
 		return &fatalError{Err: err}
 	}
-	if c.UserAgent != "" {
-		req.Header.Add("User-Agent", c.UserAgent)
+	if th.userAgent != "" {
+		req.Header.Add("User-Agent", th.userAgent)
 	}
 
 	// upgrade the connection to UDP over TCP
 	req.Header.Set("Connection", "Upgrade")
 	req.Header.Set("Upgrade", UpgradeProto)
 
-	resp, err := c.httpc.Do(req)
+	resp, err := th.httpc.Do(req)
 	if err != nil {
 		return err
 	}
@@ -220,7 +232,6 @@ func (c *Client) tryTunnel(ctx context.Context, peer string, pips []string, firs
 	// is this needed?
 	rb := resp.Body
 	resp.Body = nil
-	defer rb.Close()
 
 	if resp.StatusCode != http.StatusSwitchingProtocols {
 		return &fatalError{Err: fmt.Errorf("status is not switching protocols, got: '%v'", resp.StatusCode)}
@@ -238,38 +249,71 @@ func (c *Client) tryTunnel(ctx context.Context, peer string, pips []string, firs
 	if !ok {
 		return &fatalError{Err: fmt.Errorf("response body is not of type io.ReadWriteCloser: %T", rb)}
 	}
-	log.Log("Connected to HTTP server")
+	th.rwc = rwc
+	th.mu.Lock()
+	th.established = true
+	th.mu.Unlock()
+	log.Logf("Connected to HTTP server, ready for proxying traffic...")
+	return nil
+}
 
-	if c.Ready != nil && first {
-		// This calls the ready callback
-		// Which means the client can begin setting up wireguard
-		// This callback should return the port WireGuard is listening on
-		fwp, err := c.Ready() 
-		if err != nil {
-			return &fatalError{Err: fmt.Errorf("Client ready callback gave an error: %w", err)}
-		}
-		if c.ForwardPort == 0 {
-			c.ForwardPort = fwp
-		}
+func (th *tcpHandshake) Read(p []byte) (n int, err error) {
+	th.mu.RLock()
+	if !th.established {
+		th.mu.RUnlock()
+		return 0, nil
 	}
+	th.mu.RUnlock()
+	return th.rwc.Read(p)
+}
 
+func (th *tcpHandshake) Close() {
+	if th.rwc != nil {
+		th.rwc.Close()
+	}
+}
+
+func (th *tcpHandshake) Write(p []byte) (n int, err error) {
+	th.mu.RLock()
+	if !th.established {
+		th.mu.RUnlock()
+		log.Logf("Got traffic, creating a handshake...")
+		herr := th.Handshake()
+		if herr != nil {
+			return 0, herr
+		}
+	} else {
+		th.mu.RUnlock()
+	}
+	return th.rwc.Write(p)
+}
+
+// tryTunnel tries to tunnel the connection by connecting to HTTP peer `to` with IPs `pips`
+// the boolean `first` is set if it's the first connect to the server
+func (c *Client) tryTunnel(ctx context.Context, wglisten int) (err error) {
+	th := &tcpHandshake{
+		ctx:         ctx,
+		peer:        c.Peer,
+		pips:        c.PeerIPS,
+		fwmark:      c.Fwmark,
+		sourcePort:  c.TCPSourcePort,
+		setupSocket: c.SetupSocket,
+		userAgent:   c.UserAgent,
+	}
+	defer th.Close()
 	udpaddr := &net.UDPAddr{
-		IP: net.ParseIP("127.0.0.1"),
+		IP:   net.ParseIP("127.0.0.1"),
 		Port: c.ListenPort,
 	}
 	wgaddr := &net.UDPAddr{
-		IP: net.ParseIP("127.0.0.1"),
-		Port: c.ForwardPort,
+		IP:   net.ParseIP("127.0.0.1"),
+		Port: wglisten,
 	}
 	wgconn, err := net.DialUDP("udp", udpaddr, wgaddr)
 	if err != nil {
 		return err
 	}
 	defer wgconn.Close()
-	log.Log("Client is ready for converting UDP<->HTTP")
-
-	// create a buffered read writer
-	rw := bufio.NewReadWriter(bufio.NewReader(rwc), bufio.NewWriter(rwc))
-
+	rw := bufio.NewReadWriter(bufio.NewReader(th), bufio.NewWriter(th))
 	return tunnel(ctx, wgconn, rw)
 }

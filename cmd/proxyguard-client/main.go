@@ -72,12 +72,22 @@ func main() {
 	}()
 
 	client := proxyguard.Client{
-		ForwardPort: *forwardport,
-		ListenPort:        *listenport,
+		ListenPort:    *listenport,
 		TCPSourcePort: *tcpsp,
 		Fwmark:        *fwmark,
+		PeerIPS: pips,
 	}
-	err := client.Tunnel(ctx, *to, pips)
+	err := client.SetupDNS(ctx)
+	if err != nil {
+		select {
+		case <-ctx.Done():
+			cl.Log("exiting...")
+		default:
+			cl.Logf("error occurred when resolving DNS: %v", err)
+		}
+		return
+	}
+	err = client.Tunnel(ctx, *forwardport)
 	if err != nil {
 		select {
 		case <-ctx.Done():

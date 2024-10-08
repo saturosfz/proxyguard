@@ -14,15 +14,14 @@ import (
 // A restart is a 'failure' if the total execution time
 // of the function is less than delta `d`. If the function takes more than (or equal to) delta `d`
 // the wait time is reset to the first value of `wt`
-func restartUntilErr(ctx context.Context, work func(context.Context, bool) error, wt []time.Duration, d time.Duration) error {
+func restartUntilErr(ctx context.Context, work func(context.Context) error, wt []time.Duration, d time.Duration) error {
 	if len(wt) == 0 {
 		return errors.New("no restart wait times available")
 	}
 	failed := 0
-	first := true
 	for {
 		st := time.Now()
-		err := work(ctx, first)
+		err := work(ctx)
 		et := time.Now()
 		if err != nil {
 			return err
@@ -41,6 +40,5 @@ func restartUntilErr(ctx context.Context, work func(context.Context, bool) error
 			return ctx.Err()
 		case <-time.After(wt[failed]):
 		}
-		first = false
 	}
 }
