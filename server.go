@@ -8,6 +8,8 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -97,6 +99,20 @@ func (s tunnelServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Logf("Tunneling UDP<->TCP client exited with error: %v", err)
 }
 
+// Returns the socket provided by systemd
+func getSystemdSocket() (net.Listener, error) {
+	listen_fds := os.Getenv("LISTEN_FDS")
+	nfds, err := strconv.Atoi(listen_fds)
+	if listen_fds != "" && err != nil {
+		log.Logf("Could not convert $LISTEN_FDS to int: %v", err)
+		return nil, nil
+	}
+	if nfds != 1 {
+		return nil, nil
+	}
+	return net.FileListener(os.NewFile(uintptr(3), ""))
+}
+
 // Server creates a server that forwards TCP to UDP
 // wgp is the WireGuard port
 // tcpp is the TCP listening port
@@ -106,13 +122,21 @@ func Server(ctx context.Context, listen string, to string) error {
 	if err != nil {
 		return err
 	}
-	tcpaddr, err := net.ResolveTCPAddr("tcp", listen)
-	if err != nil {
-		return err
-	}
-	tcpconn, err := net.ListenTCP("tcp", tcpaddr)
-	if err != nil {
-		return err
+	var tcpconn net.Listener
+	var tcpaddrname string
+	tcpconn, err = getSystemdSocket()
+	if err == nil && tcpconn != nil {
+		tcpaddrname = "systemd socket"
+	} else {
+		tcpaddr, err := net.ResolveTCPAddr("tcp", listen)
+		if err != nil {
+			return err
+		}
+		tcpconn, err = net.ListenTCP("tcp", tcpaddr)
+		if err != nil {
+			return err
+		}
+		tcpaddrname = tcpaddr.String()
 	}
 	s := &http.Server{
 		Handler:      tunnelServer{wgaddr: wgaddr},
@@ -121,7 +145,7 @@ func Server(ctx context.Context, listen string, to string) error {
 	}
 
 	errc := make(chan error, 1)
-	log.Logf("ready and listening on %s", tcpaddr.String())
+	log.Logf("ready and listening on %s", tcpaddrname)
 	go func() {
 		errc <- s.Serve(tcpconn)
 	}()
