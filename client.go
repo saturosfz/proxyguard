@@ -248,6 +248,11 @@ func (th *tcpHandshake) Handshake() error {
 		th.httpc = &http.Client{}
 	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
+	// disable HTTP/2 as connection upgrades do not support this
+	// According to go docs (https://pkg.go.dev/net/http): Programs that must disable HTTP/2
+	// can do so by setting [Transport.TLSNextProto] (for clients)
+	// or [Server.TLSNextProto] (for servers) to a non-nil, empty map
+	transport.TLSNextProto = make(map[string]func(string, *tls.Conn) http.RoundTripper)
 	transport.DialContext = func(ctx context.Context, network string, addr string) (conn net.Conn, err error) {
 		return dialContext(ctx, dialer, network, addr, peerhost, th.pips)
 	}
