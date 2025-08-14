@@ -14,7 +14,7 @@ fmt:
 	gofumpt -w .
 
 lint:
-	golangci-lint run ./... -E stylecheck,revive,gocritic
+	golangci-lint run ./... -E staticcheck,revive,gocritic
 
 sloc:
 	tokei -t=Go . || cloc --include-ext=go .

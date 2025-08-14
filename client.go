@@ -1,3 +1,4 @@
+// Package proxyguard implements the library part of ProxyGuard
 package proxyguard
 
 import (
@@ -81,7 +82,10 @@ func (c *Client) Setup(ctx context.Context) (int, error) {
 	}
 	err = c.setupDNS(ctx)
 	if err != nil {
-		conn.Close()
+		clErr := conn.Close()
+		if clErr != nil {
+			log.Logf("failed closing UDP conn: %v", clErr)
+		}
 		return -1, err
 	}
 	port := conn.LocalAddr().(*net.UDPAddr).Port
@@ -94,7 +98,10 @@ func (c *Client) Close() {
 	if c.uconn == nil {
 		return
 	}
-	c.uconn.Close()
+	clErr := c.uconn.Close()
+	if clErr != nil {
+		log.Logf("failed closing client: %v", clErr)
+	}
 	c.uconn = nil
 }
 
@@ -330,7 +337,10 @@ func (th *tcpHandshake) Read(p []byte) (n int, err error) {
 
 func (th *tcpHandshake) Close() {
 	if th.wc != nil {
-		th.wc.Close()
+		clErr := th.wc.Close()
+		if clErr != nil {
+			log.Logf("failed closing handshake: %v", clErr)
+		}
 		th.wc = nil
 		th.tr = nil
 	}

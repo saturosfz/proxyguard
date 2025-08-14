@@ -21,6 +21,7 @@ func newTimeoutReader(ctx context.Context, parent io.Reader, timeout time.Durati
 	}
 }
 
+// ErrReaderTimeout is an error that is triggered when the TCP reader has timed out
 var ErrReaderTimeout = errors.New("TCP reader timeout reached")
 
 type retReader struct {

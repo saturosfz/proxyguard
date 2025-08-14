@@ -58,7 +58,10 @@ func writeTCP(w *bufio.Writer, buf []byte, n int) error {
 	binary.BigEndian.PutUint16(buf[:hdrLength], uint16(n))
 	// store the length and packet itself
 	_, werr := w.Write(buf)
-	w.Flush()
+	flErr := w.Flush()
+	if flErr != nil {
+		log.Logf("failed flushing write buffer: %v", flErr)
+	}
 	return werr
 }
 

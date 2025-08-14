@@ -1,6 +1,7 @@
 # 2.0.1 (2025-08-14)
 - Client: Disable HTTP/2
 - Contrib: fix vpn_setup.sh script for 2.x ProxyGuard client
+- Linting: Switch to staticcheck for golangci-lint
 
 # 2.0.0 (2025-01-31)
 - Client:

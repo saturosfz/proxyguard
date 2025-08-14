@@ -1,3 +1,4 @@
+// Package main implements a ProxyGuard Server CLI client
 package main
 
 import (

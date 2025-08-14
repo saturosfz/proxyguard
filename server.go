@@ -63,12 +63,17 @@ func (s tunnelServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// we have hijacked the connection
 	// the connection should be closed at the end
 	// we use the brw as a buffer that we can read/write to
-	defer conn.Close()
+	defer func() {
+		clErr := conn.Close()
+		if clErr != nil {
+			log.Logf("failed closing hijacked connection: %v", clErr)
+		}
+	}()
 
 	// stolen from nhooyr.io/websocket
 	// https://github.com/golang/go/issues/32314
 	// TODO: is this really needed for us?
-	b, _ := brw.Reader.Peek(brw.Reader.Buffered())
+	b, _ := brw.Peek(brw.Reader.Buffered())
 
 	// client read should timeout after 60 seconds
 	mr := io.MultiReader(bytes.NewReader(b), conn)
@@ -81,7 +86,12 @@ func (s tunnelServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Logf("Failed dialing WireGuard: %v", err)
 		return
 	}
-	defer wgconn.Close()
+	defer func() {
+		clErr := wgconn.Close()
+		if clErr != nil {
+			log.Logf("failed closing wg connection: %v", clErr)
+		}
+	}()
 
 	// tunnel the traffic using the buffered connection
 	err = tunnel(r.Context(), wgconn, brw, nil)

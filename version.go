@@ -11,7 +11,7 @@ const version = "2.0.0"
 // versionReleased sets whether or not the current version is released yet
 const versionReleased = true
 
-// Version() gets the version in the following order:
+// Version gets the version in the following order:
 // - Gets a release version if it detects it is a release
 // - Gets the commit using debug info
 // - Returns a default

@@ -2,10 +2,10 @@
 
 package proxyguard
 
-func socketReuseSport(fd int) error {
+func socketReuseSport(_ int) error {
 	panic("reusing a source port is not supported on this OS")
 }
 
-func socketFWMark(fd int, mark int) error {
+func socketFWMark(_ int, _ int) error {
 	panic("setting fwmark is not supported on this OS")
 }
