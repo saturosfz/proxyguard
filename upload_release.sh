@@ -5,7 +5,7 @@ set -e
 ORG=eduvpn
 PROJECT_NAME=$(basename "$(pwd)")
 PROJECT_VERSION=$(grep -o 'const version = "[^"]*' version.go | cut -d '"' -f 2)
-CODEBERG_API_KEY=$(cat "${XDG_CONFIG_HOME}/codeberg.org/api.key")
+CODEBERG_API_KEY=$(cat "${HOME}/.config/codeberg.org/api.key")
 RELEASE_DIR="${PWD}/release"
 KEY_ID=227FF3F8F829D9A9314D9EBA02BB8048BBFF222C
 mkdir -p "$RELEASE_DIR"
