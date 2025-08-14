@@ -12,12 +12,15 @@ import (
 	"codeberg.org/eduVPN/proxyguard"
 )
 
+// ServerLogger is the logger for the server
 type ServerLogger struct{}
 
+// Logf logs a message with arguments
 func (sl *ServerLogger) Logf(msg string, params ...interface{}) {
 	log.Printf(fmt.Sprintf("[Server] %s\n", msg), params...)
 }
 
+// Log logs a message
 func (sl *ServerLogger) Log(msg string) {
 	log.Printf("[Server] %s\n", msg)
 }

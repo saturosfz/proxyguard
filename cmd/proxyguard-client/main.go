@@ -14,12 +14,15 @@ import (
 	"codeberg.org/eduVPN/proxyguard"
 )
 
+// ClientLogger is the logger for the client
 type ClientLogger struct{}
 
+// Logf logs a message with arguments
 func (cl *ClientLogger) Logf(msg string, params ...interface{}) {
 	log.Printf(fmt.Sprintf("[Client] %s\n", msg), params...)
 }
 
+// Log logs a message
 func (cl *ClientLogger) Log(msg string) {
 	log.Printf("[Client] %s\n", msg)
 }
