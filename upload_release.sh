@@ -31,14 +31,14 @@ if [ "$(git tag -l "${PROJECT_VERSION}")" ]; then
 fi
 
 # upload to codeberg, codeberg automatically creates the tag against main
-JSON_BODY="{\"tag_name\": \"${PROJECT_VERSION}\"}"
+JSON_BODY="{\"tag_name\": \"v${PROJECT_VERSION}\"}"
 
 # create tag
-git tag "${PROJECT_VERSION}" -m "update to ${PROJECT_VERSION}"
+git tag "v${PROJECT_VERSION}" -m "update to ${PROJECT_VERSION}"
 git push origin --tags
 
 # create archive
-git archive --prefix "${PROJECT_NAME}-${PROJECT_VERSION}/" "${PROJECT_VERSION}" | tar -xf -
+git archive --prefix "${PROJECT_NAME}-${PROJECT_VERSION}/" "v${PROJECT_VERSION}" | tar -xf -
 tar -cJf "${RELEASE_DIR}/${PROJECT_NAME}-${PROJECT_VERSION}.tar.xz" "${PROJECT_NAME}-${PROJECT_VERSION}"
 
 # sign
