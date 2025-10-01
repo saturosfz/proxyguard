@@ -29,7 +29,7 @@ func main() {
 	listen := flag.String("listen", "", "The IP:PORT to listen for HTTP upgrade requests.")
 	to := flag.String("to", "", "The IP:PORT to which to send the converted UDP traffic to. Specify the WireGuard destination.")
 	version := flag.Bool("version", false, "Show version information")
-	log_originatingip := flag.Bool("log_originatingip", false, "Logs originating IP of proxyguard requests")
+	logip := flag.Bool("logip", false, "Logs originating IP of proxyguard requests")
 	flag.Parse()
 
 	if *version {
@@ -65,7 +65,7 @@ func main() {
 		}
 	}()
 
-	err := proxyguard.Server(ctx, *listen, *to, *log_originatingip)
+	err := proxyguard.Server(ctx, *listen, *to, *logip)
 	if err != nil {
 		select {
 		case <-ctx.Done():

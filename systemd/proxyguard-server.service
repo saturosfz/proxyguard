@@ -4,7 +4,7 @@ Description=Proxy UDP traffic over TCP and HTTP(S)
 [Service]
 Environment=LISTEN=127.0.0.1:51820
 Environment=TO=127.0.0.1:51820
-Environment=ADDITIONAL_FLAGS=-log_originatingip
+Environment=ADDITIONAL_FLAGS=-logip
 ExecStart=proxyguard-server -listen ${LISTEN} -to ${TO} ${ADDITIONAL_FLAGS}
 Restart=on-failure
 ProtectSystem=strict
