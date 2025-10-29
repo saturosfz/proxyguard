@@ -1,7 +1,7 @@
 on: [push]
 jobs:
   tests:
-    runs-on: docker
+    runs-on: codeberg-tiny-lazy
     container:
       image: codeberg.org/jwijenbergh/ci:latest-amd64
     steps:
