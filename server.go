@@ -13,8 +13,7 @@ import (
 )
 
 type tunnelServer struct {
-	wgaddr            *net.UDPAddr
-	logip bool
+	wgaddr *net.UDPAddr
 }
 
 func (s tunnelServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -100,9 +99,7 @@ func (s tunnelServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if originatingIp == "" {
 		originatingIp = r.RemoteAddr
 	}
-	if s.logip {
-		log.Logf("%v proxied as %v\n", originatingIp, wgconn.LocalAddr().String())
-	}
+	log.Logf("%v proxied as %v\n", originatingIp, wgconn.LocalAddr().String())
 	// tunnel the traffic using the buffered connection
 	err = tunnel(r.Context(), wgconn, brw, nil)
 	if err == nil {
@@ -121,7 +118,7 @@ func (s tunnelServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // wgp is the WireGuard port
 // tcpp is the TCP listening port
 // to is the IP:PORT string
-func Server(ctx context.Context, listen string, to string, logip bool) error {
+func Server(ctx context.Context, listen string, to string) error {
 	wgaddr, err := net.ResolveUDPAddr("udp", to)
 	if err != nil {
 		return err
@@ -135,8 +132,7 @@ func Server(ctx context.Context, listen string, to string, logip bool) error {
 		return err
 	}
 	s := &http.Server{
-		Handler: tunnelServer{wgaddr: wgaddr,
-			logip: logip},
+		Handler:      tunnelServer{wgaddr: wgaddr},
 		ReadTimeout:  time.Second * 10,
 		WriteTimeout: time.Second * 10,
 	}
