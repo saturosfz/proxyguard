@@ -99,7 +99,7 @@ func (s tunnelServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if originatingIp == "" {
 		originatingIp = r.RemoteAddr
 	}
-	log.Logf("%v proxied as %v\n", originatingIp, wgconn.LocalAddr().String())
+	log.Logf("%v proxied as %v", originatingIp, wgconn.LocalAddr().String())
 	// tunnel the traffic using the buffered connection
 	err = tunnel(r.Context(), wgconn, brw, nil)
 	if err == nil {
