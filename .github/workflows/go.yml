@@ -1,6 +1,5 @@
-name: Go Build and Cross-Compile
+name: Go Multi-Binary Cross-Compile
 
-# 触发条件：当向 main 分支推送代码或提交 PR 时触发
 on:
   push:
     branches: [ "main" ]
@@ -9,18 +8,20 @@ on:
 
 jobs:
   build:
-    name: Build Binary
+    name: Build
     runs-on: ubuntu-latest
     
-    # 使用矩阵策略，同时循环编译 amd64 和 arm64
     strategy:
       matrix:
-        goos: [linux] # 操作系统：Linux, macOS, Windows
-        goarch: [amd64, arm64]         # 架构：x86_64, ARM64
-        # 排除不支持或不常用的组合（可选）
+        # 1. 新增 target 维度，对应 Makefile 中的两个独立二进制
+        target: [client, server]
+        # 2. 操作系统和架构支持
+        goos: [linux]
+        goarch: [amd64, arm64]
+        # 排除 Windows 平台下的 arm64（通常不需要，可根据需求删改）
 
     steps:
-    # 1. 签出源代码
+    # 1. 签出代码
     - name: Checkout code
       uses: actions/checkout@v4
 
@@ -28,34 +29,40 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.22' # 或者是 '1.21'，根据你的项目实际需求调整
-        cache: true        # 开启自动缓存 go mod 依赖，加速后续构建
+        go-version: '1.22'
+        cache: true
 
-    # 3. 下载依赖（如果有）
+    # 3. 下载依赖
     - name: Install dependencies
       run: go mod download
 
-    # 4. 执行交叉编译
-    # 通过环境变量 GOOS 和 GOARCH 控制编译目标
-    - name: Compile Binary
+    # 4. 参考 Makefile 逻辑进行多产物交叉编译
+    - name: Compile Binaries
       env:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
-        CGO_ENABLED: 0 # 禁用 CGO 以确保生成纯静态二进制文件，提升跨平台兼容性
+        CGO_ENABLED: 0 # 保持纯静态编译
       run: |
-        # 定义输出文件名，如果是 Windows 则自动加上 .exe 后缀
-        BINARY_NAME="my-app-${{ matrix.goos }}-${{ matrix.goarch }}"
+        # 动态组装输出文件名，例如: proxyguard-client-linux-amd64
+        OUTPUT_NAME="proxyguard-${{ matrix.target }}-${{ matrix.goos }}-${{ matrix.goarch }}"
+        
+        # Windows 系统追加 .exe 后缀
         if [ "${{ matrix.goos }}" = "windows" ]; then
-          BINARY_NAME="${BINARY_NAME}.exe"
+          OUTPUT_NAME="${OUTPUT_NAME}.exe"
         fi
         
-        # 执行编译，假设你的 main.go 在根目录，如果不是请修改路径（例如 ./cmd/main.go）
-        go build -v -ldflags="-s -w" -o build/${BINARY_NAME} .
+        echo "正在编译: ${OUTPUT_NAME}..."
         
-    # 5. 将编译产物上传到 GitHub Artifacts
-    - name: Upload Artifact
+        # 完美对应 Makefile 中的编译路径
+        go build -v -ldflags="-s -w" \
+          -o build/${OUTPUT_NAME} \
+          codeberg.org/eduVPN/proxyguard/cmd/proxyguard-${{ matrix.target }}/...
+
+    # 5. 上传当前矩阵节点的编译产物
+    - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: binary-${{ matrix.goos }}-${{ matrix.goarch }}
+        # 每个 artifact 需要唯一的名称
+        name: proxyguard-${{ matrix.target }}-${{ matrix.goos }}-${{ matrix.goarch }}
         path: build/
-        retention-days: 5 # 产物保留天数
+        retention-days: 5
