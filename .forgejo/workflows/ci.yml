@@ -1,16 +1,61 @@
-on: [push]
+name: Go Build and Cross-Compile
+
+# 触发条件：当向 main 分支推送代码或提交 PR 时触发
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
 jobs:
-  tests:
-    runs-on: docker
-    container:
-      image: codeberg.org/jwijenbergh/ci:latest-amd64
+  build:
+    name: Build Binary
+    runs-on: ubuntu-latest
+    
+    # 使用矩阵策略，同时循环编译 amd64 和 arm64
+    strategy:
+      matrix:
+        goos: [linux] # 操作系统：Linux, macOS, Windows
+        goarch: [amd64, arm64]         # 架构：x86_64, ARM64
+        # 排除不支持或不常用的组合（可选）
+
     steps:
-      - name: Clone Repository
-        run: |
-          git clone --depth 1 -b ${{ github.ref_name }} ${{ github.server_url }}/${{ github.repository }} .
-      - name: Build
-        run: |
-          unshare -c -n make all
-      - name: Lint
-        run: |
-          unshare -c -n make lint
+    # 1. 签出源代码
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # 2. 设置 Go 环境
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22' # 或者是 '1.21'，根据你的项目实际需求调整
+        cache: true        # 开启自动缓存 go mod 依赖，加速后续构建
+
+    # 3. 下载依赖（如果有）
+    - name: Install dependencies
+      run: go mod download
+
+    # 4. 执行交叉编译
+    # 通过环境变量 GOOS 和 GOARCH 控制编译目标
+    - name: Compile Binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0 # 禁用 CGO 以确保生成纯静态二进制文件，提升跨平台兼容性
+      run: |
+        # 定义输出文件名，如果是 Windows 则自动加上 .exe 后缀
+        BINARY_NAME="my-app-${{ matrix.goos }}-${{ matrix.goarch }}"
+        if [ "${{ matrix.goos }}" = "windows" ]; then
+          BINARY_NAME="${BINARY_NAME}.exe"
+        fi
+        
+        # 执行编译，假设你的 main.go 在根目录，如果不是请修改路径（例如 ./cmd/main.go）
+        go build -v -ldflags="-s -w" -o build/${BINARY_NAME} .
+        
+    # 5. 将编译产物上传到 GitHub Artifacts
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: binary-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: build/
+        retention-days: 5 # 产物保留天数
