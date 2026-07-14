@@ -17,7 +17,7 @@ jobs:
         target: [client, server]
         # 2. 操作系统和架构支持
         goos: [linux]
-        goarch: [amd64, arm64]
+        goarch: [arm64]
         # 排除 Windows 平台下的 arm64（通常不需要，可根据需求删改）
 
     steps:
@@ -45,11 +45,6 @@ jobs:
       run: |
         # 动态组装输出文件名，例如: proxyguard-client-linux-amd64
         OUTPUT_NAME="proxyguard-${{ matrix.target }}-${{ matrix.goos }}-${{ matrix.goarch }}"
-        
-        # Windows 系统追加 .exe 后缀
-        if [ "${{ matrix.goos }}" = "windows" ]; then
-          OUTPUT_NAME="${OUTPUT_NAME}.exe"
-        fi
         
         echo "正在编译: ${OUTPUT_NAME}..."
         
